@@ -6,13 +6,13 @@ import numpy as np
 import matplotlib.pyplot as plt
 import random
 
-file1path = "/home/ken/Documents/tf/fourierproject/FFT/noisydata.csv"
-file2path = "/home/ken/Documents/tf/fourierproject/FFT/noisydata_fft_real.csv"
-file3path = "/home/ken/Documents/tf/fourierproject/FFT/noisydata_fft_imag.csv"
+file1path = "/home/ken/Documents/tf/fourierproject/neural-network-fft/noisydata.csv"
+file2path = "/home/ken/Documents/tf/fourierproject/neural-network-fft/noisydata_fft_real.csv"
+file3path = "/home/ken/Documents/tf/fourierproject/neural-network-fft/noisydata_fft_imag.csv"
 
-test1path = "/home/ken/Documents/tf/fourierproject/FFT/noisydata_test.csv"
-test2path = "/home/ken/Documents/tf/fourierproject/FFT/noisydata_fft_real_test.csv"
-test3path = "/home/ken/Documents/tf/fourierproject/FFT/noisydata_fft_imag_test.csv"
+test1path = "/home/ken/Documents/tf/fourierproject/neural-network-fft/noisydata_test.csv"
+test2path = "/home/ken/Documents/tf/fourierproject/neural-network-fft/noisydata_fft_real_test.csv"
+test3path = "/home/ken/Documents/tf/fourierproject/neural-network-fft/noisydata_fft_imag_test.csv"
 
 FLAGS = None
 sample_length = 200
@@ -20,6 +20,7 @@ sample_length = 200
 # Parameters
 learning_rate = .0001
 train_steps = 8000
+epsilon = 1e-3
 
 def fournn(x):
     """fournn builds the graph to perform FFT with a neural network
@@ -36,23 +37,29 @@ def fournn(x):
     # First fully connected layer
     with tf.name_scope('fc1'):
         W_fc1 = weight_variable([200, 400])
-        b_fc1 = bias_variable([400])
-
-        h_fc1 = tf.nn.relu(tf.matmul(x, W_fc1) + b_fc1)
+        n_fc1 = tf.matmul(x, W_fc1)
+        batch_mean_fc1, batch_var_fc1 = tf.nn.moments(n_fc1, [0])
+        scale_fc1, beta_fc1 = batch_norm_variables([400])
+        bn_fc1 = tf.nn.batch_normalization(n_fc1, batch_mean_fc1, batch_var_fc1, beta_fc1, scale_fc1, epsilon)
+        h_fc1 = tf.nn.relu(bn_fc1)
 
     # Second fully connected layer
     with tf.name_scope('fc2'):
         W_fc2 = weight_variable([400,300])
-        b_fc2 = bias_variable([300])
-
-        h_fc2 = tf.nn.relu(tf.matmul(h_fc1, W_fc2) + b_fc2)
+        n_fc2 = tf.matmul(h_fc1, W_fc2)
+        batch_mean_fc2, batch_var_fc2 = tf.nn.moments(n_fc2, [0])
+        scale_fc2, beta_fc2 = batch_norm_variables([300])
+        bn_fc2 = tf.nn.batch_normalization(n_fc2, batch_mean_fc2, batch_var_fc2, beta_fc2, scale_fc2, epsilon)
+        h_fc2 = tf.nn.relu(bn_fc2)
 
     # Third fully connected layer
     with tf.name_scope('fc3'):
         W_fc3 = weight_variable([300,200])
-        b_fc3 = bias_variable([200])
-
-        h_fc3 = tf.matmul(h_fc2, W_fc3) + b_fc3
+        n_fc3 = tf.matmul(h_fc2, W_fc3)
+        batch_mean_fc3, batch_var_fc3 = tf.nn.moments(n_fc3, [0])
+        scale_fc3, beta_fc3 = batch_norm_variables([200])
+        bn_fc3 = tf.nn.batch_normalization(n_fc3, batch_mean_fc3, batch_var_fc3, beta_fc3, scale_fc3, epsilon)
+        h_fc3 = tf.nn.relu(bn_fc3)
 
     return h_fc3
 
@@ -67,6 +74,12 @@ def bias_variable(shape):
     """bias_variable generates a bias variable of a given shape."""
     initial = tf.constant(0.1, shape=shape)
     return tf.Variable(initial)
+
+def batch_norm_variables(shape):
+    """batch_norm_variables generates scale and beta for a given shape."""
+    scale = tf.Variable(tf.ones(shape))
+    beta = tf.Variable(tf.zeros(shape))
+    return scale, beta
 
 # Create plots to show learning progress
 def plot_progress(fft_truth, fft_predicted, error_plot, n):

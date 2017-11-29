@@ -6,13 +6,13 @@ import numpy as np
 import matplotlib.pyplot as plt
 import random
 
-file1path = "/home/ken/Documents/tf/fourierproject/FFT/noisydata.csv"
-file2path = "/home/ken/Documents/tf/fourierproject/FFT/noisydata_fft_real.csv"
-file3path = "/home/ken/Documents/tf/fourierproject/FFT/noisydata_fft_imag.csv"
+file1path = "/home/ken/Documents/tf/fourierproject/neural-network-fft/noisydata.csv"
+file2path = "/home/ken/Documents/tf/fourierproject/neural-network-fft/noisydata_fft_real.csv"
+file3path = "/home/ken/Documents/tf/fourierproject/neural-network-fft/noisydata_fft_imag.csv"
 
-test1path = "/home/ken/Documents/tf/fourierproject/FFT/noisydata_test.csv"
-test2path = "/home/ken/Documents/tf/fourierproject/FFT/noisydata_fft_real_test.csv"
-test3path = "/home/ken/Documents/tf/fourierproject/FFT/noisydata_fft_imag_test.csv"
+test1path = "/home/ken/Documents/tf/fourierproject/neural-network-fft/noisydata_test.csv"
+test2path = "/home/ken/Documents/tf/fourierproject/neural-network-fft/noisydata_fft_real_test.csv"
+test3path = "/home/ken/Documents/tf/fourierproject/neural-network-fft/noisydata_fft_imag_test.csv"
 
 FLAGS = None
 sample_length = 200
@@ -20,6 +20,7 @@ sample_length = 200
 # Parameters
 learning_rate = .0001
 train_steps = 8000
+dropout_ratio = 0.5
 
 def fournn(x):
     """fournn builds the graph to perform FFT with a neural network
@@ -47,14 +48,19 @@ def fournn(x):
 
         h_fc2 = tf.nn.relu(tf.matmul(h_fc1, W_fc2) + b_fc2)
 
+    # Dropout - minimizes overfitting
+    with tf.name_scope('dropout'):
+        keep_prob = tf.placeholder(tf.float32)
+        h_fc2_drop = tf.nn.dropout(h_fc2, keep_prob)
+
     # Third fully connected layer
     with tf.name_scope('fc3'):
         W_fc3 = weight_variable([300,200])
         b_fc3 = bias_variable([200])
 
-        h_fc3 = tf.matmul(h_fc2, W_fc3) + b_fc3
+        h_fc3 = tf.matmul(h_fc2_drop, W_fc3) + b_fc3
 
-    return h_fc3
+    return h_fc3, keep_prob
 
 
 # Define how we create weight variables and bias variables
@@ -101,7 +107,7 @@ def main():
     y_ = tf.placeholder(tf.float32, [None, 200])
 
     # Build the graph
-    y_pred = fournn(x)
+    y_pred, keep_prob = fournn(x)
     # Targets (Labels) are the FFT signals
     y_true = y_
 
@@ -116,23 +122,23 @@ def main():
         sess.run(tf.global_variables_initializer())
 
         for i in range(train_steps):
-            train_step.run(feed_dict={x: signal_data, y_: fft_real_data})
-            l = sess.run(loss, feed_dict={x: signal_data, y_: fft_real_data})
+            train_step.run(feed_dict={x: signal_data, y_: fft_real_data, keep_prob: dropout_ratio})
+            l = sess.run(loss, feed_dict={x: signal_data, y_: fft_real_data, keep_prob: 1.0})
             print('Step %i: Loss: %f' % (i, l))
 
             if i % 500 == 0:
                 # Run some analysis and display True FFT vs. Predicted FFT
                 original_fft_data_showme = np.float32(fft_real_data)
-                y_showme_pred = np.float32(sess.run(y_pred, feed_dict={x: signal_data, y_: fft_real_data}))
+                y_showme_pred = np.float32(sess.run(y_pred, feed_dict={x: signal_data, y_: fft_real_data, keep_prob: 1.0}))
                 #print(len(y_showme_pred))
                 graph_choice = random.randint(0,len(signal_data))
                 error_plot = np.square(np.array(original_fft_data_showme[graph_choice]) - np.array(y_showme_pred[graph_choice]))
                 plot_progress(original_fft_data_showme[graph_choice],y_showme_pred[graph_choice],error_plot,1)
 
                 # Test step
-                l = sess.run(loss, feed_dict={x: signal_data_test, y_: fft_real_data_test })
+                l = sess.run(loss, feed_dict={x: signal_data_test, y_: fft_real_data_test, keep_prob: 1.0})
                 print('Testing loss at step %i: %f' % (i, l))
-                y_showme_pred_test = np.float32(sess.run(y_pred, feed_dict={x: signal_data_test, y_: fft_real_data_test}))
+                y_showme_pred_test = np.float32(sess.run(y_pred, feed_dict={x: signal_data_test, y_: fft_real_data_test, keep_prob: 1.0}))
                 graph_choice_test = random.randint(0,len(signal_data_test))
                 print(len(y_showme_pred_test[graph_choice_test]))
                 error_plot_test = np.square(np.array(fft_real_data_test[graph_choice_test]) - np.array(y_showme_pred_test[graph_choice_test]))
